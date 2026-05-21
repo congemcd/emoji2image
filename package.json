@@ -13,6 +13,7 @@
     "vite": "^6.3.5"
   },
   "dependencies": {
-    "emojibase-data": "^17.0.0"
+    "emojibase-data": "^17.0.0",
+    "lucide": "^1.16.0"
   }
 }

@@ -10,31 +10,31 @@ export const platformStyles: PlatformStyle[] = [
   },
   {
     id: "google",
-    label: "Google Noto",
+    label: "Google",
     kind: "asset",
     fontFamily: '"Noto Color Emoji", "Android Emoji", "Apple Color Emoji", "Segoe UI Emoji", emoji, sans-serif'
   },
   {
     id: "fluent3d",
-    label: "Fluent 3D",
+    label: "Microsoft 3D",
     kind: "asset",
     fontFamily: '"Segoe UI Emoji", "Segoe UI Symbol", "Apple Color Emoji", "Noto Color Emoji", emoji, sans-serif'
   },
   {
     id: "fluentFlat",
-    label: "Fluent Flat",
+    label: "Microsoft Flat",
     kind: "asset",
     fontFamily: '"Segoe UI Emoji", "Segoe UI Symbol", "Apple Color Emoji", "Noto Color Emoji", emoji, sans-serif'
   },
   {
     id: "twemoji",
-    label: "Twemoji",
+    label: "X",
     kind: "asset",
     fontFamily: '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", emoji, sans-serif'
   },
   {
     id: "openmoji",
-    label: "OpenMoji",
+    label: "Github",
     kind: "asset",
     fontFamily: '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", emoji, sans-serif'
   }

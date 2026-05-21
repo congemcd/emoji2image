@@ -1,11 +1,13 @@
 import "./styles.css";
+import { ArrowDownToLine, Search, createElement } from "lucide";
 import { categories, emojiCatalog, platformStyles, skinTones } from "./emoji-data";
 import {
   applySkinTone,
   createEmojiBlob,
   drawEmojiImage,
   getEmojiAssetUrl,
-  getExportSize
+  getExportSize,
+  getPreviewSize
 } from "./renderer";
 import type { EmojiCategory, EmojiEntry, PlatformStyle, PlatformStyleId, SkinToneId } from "./types";
 
@@ -40,47 +42,48 @@ app.innerHTML = `
     <section class="preview-pane" aria-label="Emoji image preview">
       <div class="brand-row">
         <div>
-          <p class="eyebrow">Emoji Image Studio</p>
-          <h1>Emoji to image</h1>
-        </div>
-        <span class="mode-pill">Light</span>
-      </div>
-
-      <div class="preview-frame">
-        <canvas id="previewCanvas" aria-label="Selected emoji preview"></canvas>
-      </div>
-      <p class="support-note" id="supportNote" hidden></p>
-
-      <div class="selected-row">
-        <div class="selected-emoji" id="selectedEmojiGlyph" aria-hidden="true"></div>
-        <div>
-          <p class="selected-name" id="selectedEmojiName"></p>
-          <p class="selected-meta" id="selectedEmojiMeta"></p>
+          <p class="eyebrow">Emoji Image Converter</p>
         </div>
       </div>
 
-      <div class="control-group">
-        <div class="control-heading">
-          <span>Style</span>
-        </div>
-        <div class="style-card-grid" id="styleSelector" role="radiogroup" aria-label="Emoji platform style"></div>
-      </div>
+      <div class="preview-content">
+        <div class="preview-stack">
+          <div class="preview-frame">
+            <canvas id="previewCanvas" aria-label="Selected emoji preview"></canvas>
+            <p class="support-note" id="supportNote" hidden></p>
+          </div>
 
-      <div class="control-group">
-        <div class="control-heading">
-          <span>Tone</span>
+          <div class="selected-row">
+            <div>
+              <p class="selected-name" id="selectedEmojiName"></p>
+              <p class="selected-meta" id="selectedEmojiMeta"></p>
+            </div>
+          </div>
         </div>
-        <div class="tone-grid" id="toneSelector" role="radiogroup" aria-label="Tone"></div>
+
+        <div class="control-group">
+          <div class="control-heading">
+            <span>Style</span>
+          </div>
+          <div class="style-card-grid" id="styleSelector" role="radiogroup" aria-label="Emoji platform style"></div>
+        </div>
+
+        <div class="control-group">
+          <div class="control-heading">
+            <span>Tone</span>
+          </div>
+          <div class="tone-grid" id="toneSelector" role="radiogroup" aria-label="Tone"></div>
+        </div>
       </div>
 
       <div class="download-row">
         <button class="download-button primary" id="downloadPng" type="button">
-          <span class="button-icon" aria-hidden="true">↓</span>
-          <span>PNG</span>
+          <span class="button-icon" id="downloadPngIcon" aria-hidden="true"></span>
+          <span id="downloadPngLabel"></span>
         </button>
         <button class="download-button" id="downloadJpg" type="button">
-          <span class="button-icon" aria-hidden="true">↓</span>
-          <span>JPG</span>
+          <span class="button-icon" id="downloadJpgIcon" aria-hidden="true"></span>
+          <span id="downloadJpgLabel"></span>
         </button>
       </div>
 
@@ -94,16 +97,8 @@ app.innerHTML = `
     </section>
 
     <aside class="browser-pane" aria-label="Emoji browser">
-      <div class="browser-header">
-        <div>
-          <p class="eyebrow">Browser</p>
-          <h2>Choose emoji</h2>
-        </div>
-        <span class="result-count" id="resultCount"></span>
-      </div>
-
       <label class="search-field">
-        <span aria-hidden="true">⌕</span>
+        <span class="search-icon" id="searchIcon" aria-hidden="true"></span>
         <input id="emojiSearch" type="search" placeholder="Search emoji" autocomplete="off" />
       </label>
 
@@ -114,7 +109,6 @@ app.innerHTML = `
 `;
 
 const previewCanvas = getElement<HTMLCanvasElement>("previewCanvas");
-const selectedEmojiGlyph = getElement<HTMLDivElement>("selectedEmojiGlyph");
 const selectedEmojiName = getElement<HTMLParagraphElement>("selectedEmojiName");
 const selectedEmojiMeta = getElement<HTMLParagraphElement>("selectedEmojiMeta");
 const supportNote = getElement<HTMLParagraphElement>("supportNote");
@@ -123,9 +117,17 @@ const toneSelector = getElement<HTMLDivElement>("toneSelector");
 const categoryFilter = getElement<HTMLDivElement>("categoryFilter");
 const emojiGrid = getElement<HTMLDivElement>("emojiGrid");
 const emojiSearch = getElement<HTMLInputElement>("emojiSearch");
-const resultCount = getElement<HTMLSpanElement>("resultCount");
 const downloadPng = getElement<HTMLButtonElement>("downloadPng");
 const downloadJpg = getElement<HTMLButtonElement>("downloadJpg");
+const downloadPngLabel = getElement<HTMLSpanElement>("downloadPngLabel");
+const downloadJpgLabel = getElement<HTMLSpanElement>("downloadJpgLabel");
+const downloadPngIcon = getElement<HTMLSpanElement>("downloadPngIcon");
+const downloadJpgIcon = getElement<HTMLSpanElement>("downloadJpgIcon");
+const searchIcon = getElement<HTMLSpanElement>("searchIcon");
+
+appendDownloadIcon(downloadPngIcon);
+appendDownloadIcon(downloadJpgIcon);
+appendSearchIcon(searchIcon);
 
 function getElement<T extends HTMLElement>(id: string): T {
   const element = document.getElementById(id);
@@ -135,6 +137,26 @@ function getElement<T extends HTMLElement>(id: string): T {
   }
 
   return element as T;
+}
+
+function appendDownloadIcon(container: HTMLElement): void {
+  container.replaceChildren(
+    createElement(ArrowDownToLine, {
+      width: 18,
+      height: 18,
+      "stroke-width": 2.4
+    })
+  );
+}
+
+function appendSearchIcon(container: HTMLElement): void {
+  container.replaceChildren(
+    createElement(Search, {
+      width: 18,
+      height: 18,
+      "stroke-width": 2.4
+    })
+  );
 }
 
 function getSelectedStyle() {
@@ -251,7 +273,6 @@ function getFilteredEmoji(): EmojiEntry[] {
 function renderEmojiGrid(): void {
   const filteredEmoji = getFilteredEmoji();
 
-  resultCount.textContent = `${filteredEmoji.length} results`;
   emojiGrid.innerHTML = filteredEmoji
     .map((entry) => {
       const isSelected = entry.emoji === state.selectedEmoji.emoji;
@@ -272,7 +293,6 @@ function renderEmojiGrid(): void {
     })
     .join("");
 
-  resultCount.textContent = `${filteredEmoji.length} results`;
   observeBrowserDefaultSupport();
 }
 
@@ -398,17 +418,14 @@ function renderPreview(): void {
 
   supportNote.hidden = true;
   supportNote.textContent = "";
-  previewCanvas.width = getExportSize();
-  previewCanvas.height = getExportSize();
+  previewCanvas.width = getPreviewSize();
+  previewCanvas.height = getPreviewSize();
   previewCanvas.getContext("2d")?.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
 
-  selectedEmojiGlyph.style.fontFamily = selectedStyle.fontFamily;
-  selectedEmojiGlyph.innerHTML =
-    selectedStyle.kind === "asset"
-      ? `<img class="asset-selected-image" src="${getEmojiAssetUrl(renderedEmoji, selectedStyle)}" alt="" />`
-      : renderedEmoji;
   selectedEmojiName.textContent = state.selectedEmoji.name;
   selectedEmojiMeta.textContent = `${selectedStyle.label} · ${tone.label} · ${getExportSize()} px`;
+  downloadPngLabel.textContent = `${state.selectedEmoji.name}.png`;
+  downloadJpgLabel.textContent = `${state.selectedEmoji.name}.jpg`;
 
   void drawEmojiImage(renderCanvas, renderedEmoji, selectedStyle)
     .then(() => {
@@ -425,7 +442,6 @@ function renderPreview(): void {
         return;
       }
 
-      selectedEmojiGlyph.innerHTML = "";
       supportNote.textContent = `${selectedStyle.label} does not include ${state.selectedEmoji.name}. Choose another style or emoji.`;
       supportNote.hidden = false;
     });

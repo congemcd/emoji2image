@@ -1,7 +1,7 @@
 import type { EmojiEntry, PlatformStyle, SkinTone } from "./types";
 
-const EXPORT_SIZE = 128;
-const PREVIEW_SIZE = 128;
+const EXPORT_SIZE = 256;
+const PREVIEW_SIZE = 256;
 const CENTERING_REFERENCE_SIZE = 512;
 const MEASURED_CENTERING_OFFSET_AT_REFERENCE_SIZE = 36;
 const imageCache = new Map<string, Promise<HTMLImageElement>>();
@@ -139,6 +139,10 @@ export async function createEmojiBlob(
 
 export function getExportSize(): number {
   return EXPORT_SIZE;
+}
+
+export function getPreviewSize(): number {
+  return PREVIEW_SIZE;
 }
 
 export function getEmojiAssetUrl(emoji: string, style: PlatformStyle): string {
