@@ -424,8 +424,8 @@ function renderPreview(): void {
 
   selectedEmojiName.textContent = state.selectedEmoji.name;
   selectedEmojiMeta.textContent = `${selectedStyle.label} · ${tone.label} · ${getExportSize()} px`;
-  downloadPngLabel.textContent = `${state.selectedEmoji.name}.png`;
-  downloadJpgLabel.textContent = `${state.selectedEmoji.name}.jpg`;
+  downloadPngLabel.textContent = "PNG";
+  downloadJpgLabel.textContent = "JPG";
 
   void drawEmojiImage(renderCanvas, renderedEmoji, selectedStyle)
     .then(() => {
