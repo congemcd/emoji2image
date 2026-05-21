@@ -1,4 +1,3 @@
-import emojiMeta from "./emoji-meta.json";
 import type { EmojiCategory, EmojiEntry, EmojiMetaEntry, PlatformStyle, SkinTone } from "./types";
 
 export const platformStyles: PlatformStyle[] = [
@@ -62,12 +61,22 @@ export const categories: EmojiCategory[] = [
   "Flags"
 ];
 
-const typedEmojiMeta = emojiMeta as EmojiMetaEntry[];
+let emojiCatalogPromise: Promise<EmojiEntry[]> | null = null;
 
-export const emojiCatalog: EmojiEntry[] = typedEmojiMeta.map((entry) => ({
-  emoji: entry.emojiCode,
-  name: entry.displayName,
-  category: entry.type,
-  keywords: entry.keywords,
-  supportsTone: entry.supportsTone
-}));
+export function loadEmojiCatalog(): Promise<EmojiEntry[]> {
+  emojiCatalogPromise ??= import("./emoji-meta.json").then((module) =>
+    (module.default as EmojiMetaEntry[]).map(mapEmojiMetaEntry)
+  );
+
+  return emojiCatalogPromise;
+}
+
+function mapEmojiMetaEntry(entry: EmojiMetaEntry): EmojiEntry {
+  return {
+    emoji: entry.emojiCode,
+    name: entry.displayName,
+    category: entry.type,
+    keywords: entry.keywords,
+    supportsTone: entry.supportsTone
+  };
+}
