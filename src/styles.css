@@ -590,6 +590,10 @@ h2 {
     padding: 20px;
   }
 
+  .preview-content {
+    padding-top: 0;
+  }
+
   .brand-row,
   .download-row {
     align-items: stretch;
@@ -599,9 +603,12 @@ h2 {
     flex-direction: column;
   }
 
-  .style-card-grid,
-  .tone-grid {
-    grid-template-columns: 1fr;
+  .preview-frame {
+    width: 128px;
+  }
+
+  .style-card-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .emoji-grid {
