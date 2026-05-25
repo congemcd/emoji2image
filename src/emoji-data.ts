@@ -51,11 +51,10 @@ export const skinTones: SkinTone[] = [
 export const categories: EmojiCategory[] = [
   "Smileys",
   "People",
-  "Components",
   "Animals",
   "Food",
-  "Travel",
   "Activity",
+  "Travel",
   "Objects",
   "Symbols",
   "Flags"

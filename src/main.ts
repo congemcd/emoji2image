@@ -1,5 +1,18 @@
 import "./styles.css";
-import { ArrowDownToLine, Search, createElement } from "lucide";
+import {
+  Apple,
+  ArrowDownToLine,
+  Cat,
+  Flag,
+  Heart,
+  Lightbulb,
+  MapPinned,
+  Search,
+  Smile,
+  UsersRound,
+  Volleyball,
+  createElement
+} from "lucide";
 import { categories, loadEmojiCatalog, platformStyles, skinTones } from "./emoji-data";
 import {
   applySkinTone,
@@ -15,7 +28,7 @@ type AppState = {
   selectedEmoji: EmojiEntry | null;
   selectedStyle: PlatformStyleId;
   selectedTone: SkinToneId;
-  selectedCategory: EmojiCategory | "All";
+  selectedCategory: EmojiCategory;
   query: string;
 };
 
@@ -24,9 +37,27 @@ type IndexedEmojiEntry = {
   index: number;
 };
 
+type EmojiCategoryGroup = {
+  category: EmojiCategory;
+  entries: IndexedEmojiEntry[];
+};
+
 type IdleDeadlineLike = {
   didTimeout: boolean;
   timeRemaining: () => number;
+};
+
+const categoryDisplay = {
+  Smileys: { icon: Smile, label: "Smileys" },
+  People: { icon: UsersRound, label: "People" },
+  Components: { icon: Smile, label: "Components" },
+  Animals: { icon: Cat, label: "Animals & Nature" },
+  Food: { icon: Apple, label: "Food & Drink" },
+  Activity: { icon: Volleyball, label: "Activity" },
+  Travel: { icon: MapPinned, label: "Travel & Places" },
+  Objects: { icon: Lightbulb, label: "Objects" },
+  Symbols: { icon: Heart, label: "Symbols" },
+  Flags: { icon: Flag, label: "Flags" }
 };
 
 type IdleCallbackHandle = ReturnType<typeof setTimeout> | number;
@@ -42,6 +73,7 @@ let supportCheckGeneration = 0;
 let supportCheckQueue: Array<{ tile: HTMLElement; emoji: string; generation: number }> = [];
 let supportCheckHandle: IdleCallbackHandle | null = null;
 let previewFrameHandle = 0;
+let activeCategoryFrameHandle = 0;
 
 const app = document.querySelector<HTMLDivElement>("#app");
 
@@ -53,7 +85,7 @@ const state: AppState = {
   selectedEmoji: null,
   selectedStyle: getInitialStyleId(),
   selectedTone: "default",
-  selectedCategory: "All",
+  selectedCategory: "Smileys",
   query: ""
 };
 
@@ -73,12 +105,7 @@ app.innerHTML = `
             <p class="support-note" id="supportNote" hidden></p>
           </div>
 
-          <div class="selected-row">
-            <div>
-              <p class="selected-name" id="selectedEmojiName"></p>
-              <p class="selected-meta" id="selectedEmojiMeta"></p>
-            </div>
-          </div>
+          <p class="selected-row" id="selectedEmojiName"></p>
         </div>
 
         <div class="control-group">
@@ -133,7 +160,6 @@ app.innerHTML = `
 
 const previewCanvas = getElement<HTMLCanvasElement>("previewCanvas");
 const selectedEmojiName = getElement<HTMLParagraphElement>("selectedEmojiName");
-const selectedEmojiMeta = getElement<HTMLParagraphElement>("selectedEmojiMeta");
 const supportNote = getElement<HTMLParagraphElement>("supportNote");
 const styleSelector = getElement<HTMLDivElement>("styleSelector");
 const toneSelector = getElement<HTMLDivElement>("toneSelector");
@@ -287,38 +313,53 @@ function renderToneSelector(): void {
 }
 
 function renderCategoryFilter(): void {
-  const allCategories: Array<EmojiCategory | "All"> = ["All", ...categories];
+  const fragment = document.createDocumentFragment();
 
-  categoryFilter.innerHTML = allCategories
-    .map(
-      (category) => `
-        <button
-          class="category-button"
-          type="button"
-          aria-pressed="${category === state.selectedCategory}"
-          data-category="${category}"
-        >
-          ${category}
-        </button>
-      `
-    )
-    .join("");
+  categories.forEach((category) => {
+    const display = categoryDisplay[category];
+    const button = document.createElement("button");
+    const icon = document.createElement("span");
+
+    button.className = "category-button";
+    button.type = "button";
+    button.setAttribute("aria-pressed", String(category === state.selectedCategory));
+    button.setAttribute("aria-label", display.label);
+    button.dataset.category = category;
+    button.title = display.label;
+
+    icon.className = "category-icon";
+    icon.setAttribute("aria-hidden", "true");
+    icon.append(
+      createElement(display.icon, {
+        width: 20,
+        height: 20,
+        "stroke-width": 2.4
+      })
+    );
+
+    button.append(icon);
+    fragment.append(button);
+  });
+
+  categoryFilter.replaceChildren(fragment);
 }
 
-function getFilteredEmoji(): IndexedEmojiEntry[] {
+function getEmojiGroups(): EmojiCategoryGroup[] {
   const normalizedQuery = state.query.trim().toLowerCase();
+  const groups = new Map<EmojiCategory, IndexedEmojiEntry[]>(
+    categories.map((category) => [category, []])
+  );
 
-  return emojiCatalog.reduce<IndexedEmojiEntry[]>((results, entry, index) => {
-    const matchesCategory =
-      state.selectedCategory === "All" || entry.category === state.selectedCategory;
+  emojiCatalog.forEach((entry, index) => {
+    const categoryGroup = groups.get(entry.category);
 
-    if (!matchesCategory) {
-      return results;
+    if (!categoryGroup) {
+      return;
     }
 
     if (!normalizedQuery) {
-      results.push({ entry, index });
-      return results;
+      categoryGroup.push({ entry, index });
+      return;
     }
 
     const searchableText = [entry.name, entry.category, entry.emoji, ...entry.keywords]
@@ -326,50 +367,55 @@ function getFilteredEmoji(): IndexedEmojiEntry[] {
       .toLowerCase();
 
     if (searchableText.includes(normalizedQuery)) {
-      results.push({ entry, index });
+      categoryGroup.push({ entry, index });
     }
+  });
 
-    return results;
-  }, []);
+  return categories
+    .map((category) => ({ category, entries: groups.get(category) ?? [] }))
+    .filter((group) => group.entries.length > 0);
 }
 
 function renderEmojiGrid(): void {
-  const filteredEmoji = getFilteredEmoji();
-  const renderGeneration = ++emojiGridRenderGeneration;
+  const emojiGroups = getEmojiGroups();
+  emojiGridRenderGeneration += 1;
 
-  if (filteredEmoji.length === 0) {
+  if (emojiGroups.length === 0) {
     resetBrowserDefaultSupportObserver();
     emojiGrid.innerHTML = `<p class="empty-state">No emoji found.</p>`;
     return;
   }
 
   const supportGeneration = startBrowserDefaultSupportObserver();
-  let nextIndex = 0;
+  const fragment = document.createDocumentFragment();
 
   emojiGrid.replaceChildren();
 
-  const appendNextBatch = () => {
-    if (renderGeneration !== emojiGridRenderGeneration) {
-      return;
-    }
+  emojiGroups.forEach((group) => {
+    const section = document.createElement("section");
+    const heading = document.createElement("h2");
+    const grid = document.createElement("div");
 
-    const fragment = document.createDocumentFragment();
-    const batchEnd = Math.min(nextIndex + 180, filteredEmoji.length);
+    section.className = "emoji-category-section";
+    section.dataset.categorySection = group.category;
 
-    for (; nextIndex < batchEnd; nextIndex += 1) {
-      const tile = createEmojiTile(filteredEmoji[nextIndex]);
-      fragment.append(tile);
+    heading.className = "emoji-category-heading";
+    heading.textContent = categoryDisplay[group.category].label;
+
+    grid.className = "emoji-category-grid";
+
+    group.entries.forEach((indexedEntry) => {
+      const tile = createEmojiTile(indexedEntry);
+      grid.append(tile);
       observeEmojiTile(tile, supportGeneration);
-    }
+    });
 
-    emojiGrid.append(fragment);
+    section.append(heading, grid);
+    fragment.append(section);
+  });
 
-    if (nextIndex < filteredEmoji.length) {
-      requestAnimationFrame(appendNextBatch);
-    }
-  };
-
-  appendNextBatch();
+  emojiGrid.append(fragment);
+  updateActiveCategoryFromScroll();
 }
 
 function createEmojiTile({ entry, index }: IndexedEmojiEntry): HTMLButtonElement {
@@ -630,14 +676,12 @@ function renderPreview(): void {
     previewCanvas.height = getPreviewSize();
     previewCanvas.getContext("2d")?.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
     selectedEmojiName.textContent = "Loading emoji";
-    selectedEmojiMeta.textContent = "Preparing browser";
     downloadPng.disabled = true;
     downloadJpg.disabled = true;
     return;
   }
 
   selectedEmojiName.textContent = selectedEmoji.name;
-  selectedEmojiMeta.textContent = `${selectedStyle.label} · ${tone.label} · ${getExportSize()} px`;
   downloadPngLabel.textContent = "PNG";
   downloadJpgLabel.textContent = "JPG";
   downloadPng.disabled = false;
@@ -690,6 +734,59 @@ function updateRadioSelection(container: HTMLElement, dataAttribute: string, sel
 function updateCategorySelection(): void {
   categoryFilter.querySelectorAll<HTMLButtonElement>("[data-category]").forEach((button) => {
     button.setAttribute("aria-pressed", String(button.dataset.category === state.selectedCategory));
+  });
+}
+
+function setActiveCategory(category: EmojiCategory): void {
+  if (category === state.selectedCategory) {
+    return;
+  }
+
+  state.selectedCategory = category;
+  updateCategorySelection();
+  categoryFilter
+    .querySelector<HTMLButtonElement>(`[data-category="${CSS.escape(category)}"]`)
+    ?.scrollIntoView({ block: "nearest", inline: "center" });
+}
+
+function updateActiveCategoryFromScroll(): void {
+  const sections = Array.from(
+    emojiGrid.querySelectorAll<HTMLElement>("[data-category-section]")
+  );
+
+  if (sections.length === 0) {
+    return;
+  }
+
+  const gridTop = emojiGrid.getBoundingClientRect().top;
+  let activeSection = sections[0];
+
+  for (const section of sections) {
+    const sectionTop = section.getBoundingClientRect().top;
+
+    if (sectionTop <= gridTop + 28) {
+      activeSection = section;
+      continue;
+    }
+
+    break;
+  }
+
+  const category = activeSection.dataset.categorySection as EmojiCategory | undefined;
+
+  if (category) {
+    setActiveCategory(category);
+  }
+}
+
+function scheduleActiveCategoryUpdate(): void {
+  if (activeCategoryFrameHandle) {
+    return;
+  }
+
+  activeCategoryFrameHandle = requestAnimationFrame(() => {
+    activeCategoryFrameHandle = 0;
+    updateActiveCategoryFromScroll();
   });
 }
 
@@ -774,14 +871,24 @@ toneSelector.addEventListener("click", (event) => {
 categoryFilter.addEventListener("click", (event) => {
   const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-category]");
 
-  if (!button || button.dataset.category === state.selectedCategory) {
+  if (!button) {
     return;
   }
 
-  state.selectedCategory = button.dataset.category as EmojiCategory | "All";
-  updateCategorySelection();
-  renderEmojiGrid();
+  const category = button.dataset.category as EmojiCategory;
+  const section = emojiGrid.querySelector<HTMLElement>(
+    `[data-category-section="${CSS.escape(category)}"]`
+  );
+
+  if (!section) {
+    return;
+  }
+
+  setActiveCategory(category);
+  section.scrollIntoView({ behavior: "auto", block: "start" });
 });
+
+emojiGrid.addEventListener("scroll", scheduleActiveCategoryUpdate);
 
 emojiGrid.addEventListener("click", (event) => {
   const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-emoji-index]");
@@ -854,8 +961,7 @@ async function initializeApp(): Promise<void> {
     render();
   } catch (error) {
     emojiGrid.innerHTML = `<p class="empty-state">Unable to load emoji.</p>`;
-    selectedEmojiName.textContent = "Emoji unavailable";
-    selectedEmojiMeta.textContent =
-      error instanceof Error ? error.message : "Refresh the page to try again";
+    selectedEmojiName.textContent =
+      error instanceof Error ? `Emoji unavailable: ${error.message}` : "Emoji unavailable";
   }
 }
