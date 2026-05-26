@@ -118,18 +118,22 @@ app.innerHTML = `
           <p class="selected-row" id="selectedEmojiName"></p>
         </div>
 
-        <div class="control-group">
-          <div class="control-heading">
-            <span>Style</span>
+        <div class="control-row">
+          <div class="control-group">
+            <div class="control-heading">
+              <span>Style</span>
+            </div>
+            <select class="mobile-select" id="styleDropdown" aria-label="Emoji platform style"></select>
+            <div class="style-card-grid" id="styleSelector" role="radiogroup" aria-label="Emoji platform style"></div>
           </div>
-          <div class="style-card-grid" id="styleSelector" role="radiogroup" aria-label="Emoji platform style"></div>
-        </div>
 
-        <div class="control-group">
-          <div class="control-heading">
-            <span>Tone</span>
+          <div class="control-group">
+            <div class="control-heading">
+              <span>Tone</span>
+            </div>
+            <select class="mobile-select" id="toneDropdown" aria-label="Tone"></select>
+            <div class="tone-grid" id="toneSelector" role="radiogroup" aria-label="Tone"></div>
           </div>
-          <div class="tone-grid" id="toneSelector" role="radiogroup" aria-label="Tone"></div>
         </div>
       </div>
 
@@ -147,13 +151,15 @@ app.innerHTML = `
     </section>
 
     <aside class="browser-pane" aria-label="Emoji browser">
-      <label class="search-field">
-        <span class="search-icon" id="searchIcon" aria-hidden="true"></span>
-        <input id="emojiSearch" type="search" placeholder="Search emoji" autocomplete="off" />
-      </label>
-
-      <div class="category-strip" id="categoryFilter" aria-label="Emoji category filter"></div>
       <div class="emoji-grid" id="emojiGrid" role="listbox" aria-label="Emoji results"></div>
+      <div class="browser-controls">
+        <label class="search-field">
+          <span class="search-icon" id="searchIcon" aria-hidden="true"></span>
+          <input id="emojiSearch" type="search" placeholder="Search emoji" autocomplete="off" />
+        </label>
+
+        <div class="category-strip" id="categoryFilter" aria-label="Emoji category filter"></div>
+      </div>
       <div class="browser-footer">
         <p class="browser-note">
           Made with 🩷 by <a href="https://www.cong.ooo" target="_blank" rel="noreferrer">Cong</a>
@@ -171,6 +177,8 @@ const selectedEmojiName = getElement<HTMLParagraphElement>("selectedEmojiName");
 const supportNote = getElement<HTMLParagraphElement>("supportNote");
 const styleSelector = getElement<HTMLDivElement>("styleSelector");
 const toneSelector = getElement<HTMLDivElement>("toneSelector");
+const styleDropdown = getElement<HTMLSelectElement>("styleDropdown");
+const toneDropdown = getElement<HTMLSelectElement>("toneDropdown");
 const categoryFilter = getElement<HTMLDivElement>("categoryFilter");
 const emojiGrid = getElement<HTMLDivElement>("emojiGrid");
 const emojiSearch = getElement<HTMLInputElement>("emojiSearch");
@@ -283,7 +291,9 @@ function getDeviceStyleId(): PlatformStyleId | null {
 }
 
 function renderStyleSelector(): void {
-  styleSelector.innerHTML = getAvailablePlatformStyles()
+  const availableStyles = getAvailablePlatformStyles();
+
+  styleSelector.innerHTML = availableStyles
     .map(
       (style) => `
         <button
@@ -295,6 +305,16 @@ function renderStyleSelector(): void {
         >
           ${style.label}
         </button>
+      `
+    )
+    .join("");
+
+  styleDropdown.innerHTML = availableStyles
+    .map(
+      (style) => `
+        <option value="${style.id}" ${style.id === state.selectedStyle ? "selected" : ""}>
+          ${style.label}
+        </option>
       `
     )
     .join("");
@@ -315,6 +335,16 @@ function renderToneSelector(): void {
         >
           <span class="tone-swatch" style="--tone-color: ${tone.color}"></span>
         </button>
+      `
+    )
+    .join("");
+
+  toneDropdown.innerHTML = skinTones
+    .map(
+      (tone) => `
+        <option value="${tone.id}" ${tone.id === state.selectedTone ? "selected" : ""}>
+          ${tone.label}
+        </option>
       `
     )
     .join("");
@@ -766,13 +796,16 @@ function updateActiveCategoryFromScroll(): void {
     return;
   }
 
-  const gridTop = emojiGrid.getBoundingClientRect().top;
+  const isHorizontalBrowser = window.matchMedia("(max-width: 560px)").matches;
+  const gridRect = emojiGrid.getBoundingClientRect();
   let activeSection = sections[0];
 
   for (const section of sections) {
-    const sectionTop = section.getBoundingClientRect().top;
+    const sectionRect = section.getBoundingClientRect();
+    const sectionStart = isHorizontalBrowser ? sectionRect.left : sectionRect.top;
+    const gridStart = isHorizontalBrowser ? gridRect.left : gridRect.top;
 
-    if (sectionTop <= gridTop + 28) {
+    if (sectionStart <= gridStart + 28) {
       activeSection = section;
       continue;
     }
@@ -861,6 +894,13 @@ styleSelector.addEventListener("click", (event) => {
 
   state.selectedStyle = button.dataset.style as PlatformStyleId;
   updateRadioSelection(styleSelector, "data-style", state.selectedStyle);
+  styleDropdown.value = state.selectedStyle;
+  renderPreview();
+});
+
+styleDropdown.addEventListener("change", () => {
+  state.selectedStyle = styleDropdown.value as PlatformStyleId;
+  updateRadioSelection(styleSelector, "data-style", state.selectedStyle);
   renderPreview();
 });
 
@@ -872,6 +912,13 @@ toneSelector.addEventListener("click", (event) => {
   }
 
   state.selectedTone = button.dataset.tone as SkinToneId;
+  updateRadioSelection(toneSelector, "data-tone", state.selectedTone);
+  toneDropdown.value = state.selectedTone;
+  renderPreview();
+});
+
+toneDropdown.addEventListener("change", () => {
+  state.selectedTone = toneDropdown.value as SkinToneId;
   updateRadioSelection(toneSelector, "data-tone", state.selectedTone);
   renderPreview();
 });
@@ -893,7 +940,7 @@ categoryFilter.addEventListener("click", (event) => {
   }
 
   setActiveCategory(category);
-  section.scrollIntoView({ behavior: "auto", block: "start" });
+  section.scrollIntoView({ behavior: "auto", block: "start", inline: "start" });
 });
 
 emojiGrid.addEventListener("scroll", scheduleActiveCategoryUpdate);
