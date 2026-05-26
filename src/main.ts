@@ -96,6 +96,16 @@ app.innerHTML = `
         <div>
           <p class="eyebrow">Emoji Image Converter</p>
         </div>
+        <a
+          class="github-link"
+          href="https://github.com/congemcd/emoji2image"
+          target="_blank"
+          rel="noreferrer"
+          aria-label="Open GitHub repository"
+          title="Open GitHub repository"
+        >
+          <span class="github-link-icon" aria-hidden="true"></span>
+        </a>
       </div>
 
       <div class="preview-content">
@@ -134,13 +144,6 @@ app.innerHTML = `
         </button>
       </div>
 
-      <p class="license-note">
-        Assets:
-        <a href="https://github.com/googlefonts/noto-emoji" target="_blank" rel="noreferrer">Noto Emoji</a>,
-        <a href="https://github.com/microsoft/fluentui-emoji" target="_blank" rel="noreferrer">Microsoft Fluent Emoji</a>,
-        <a href="https://github.com/jdecked/twemoji" target="_blank" rel="noreferrer">Twemoji</a>,
-        <a href="https://openmoji.org/" target="_blank" rel="noreferrer">OpenMoji</a>.
-      </p>
     </section>
 
     <aside class="browser-pane" aria-label="Emoji browser">
@@ -151,9 +154,14 @@ app.innerHTML = `
 
       <div class="category-strip" id="categoryFilter" aria-label="Emoji category filter"></div>
       <div class="emoji-grid" id="emojiGrid" role="listbox" aria-label="Emoji results"></div>
-      <p class="browser-note">
-        Made with 🩷 by <a href="https://www.cong.ooo" target="_blank" rel="noreferrer">Cong</a>
-      </p>
+      <div class="browser-footer">
+        <p class="browser-note">
+          Made with 🩷 by <a href="https://www.cong.ooo" target="_blank" rel="noreferrer">Cong</a>
+        </p>
+        <p class="license-note">
+          <a href="https://github.com/congemcd/emoji2image/blob/main/ATTRIBUTIONS.md" target="_blank" rel="noreferrer">Assets & licenses</a>
+        </p>
+      </div>
     </aside>
   </main>
 `;

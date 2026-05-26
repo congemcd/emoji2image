@@ -100,6 +100,53 @@ button {
   letter-spacing: 0;
 }
 
+.github-link {
+  position: relative;
+  display: block;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  line-height: 0;
+  padding: 0;
+  text-decoration: none;
+}
+
+.github-link-icon,
+.github-link::after {
+  display: block;
+  width: 100%;
+  height: 100%;
+  mask: url("/github-invertocat.svg") center / contain no-repeat;
+  -webkit-mask: url("/github-invertocat.svg") center / contain no-repeat;
+}
+
+.github-link-icon {
+  background: var(--muted);
+}
+
+.github-link::after {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.45);
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease;
+}
+
+.github-link:hover,
+.github-link:focus-visible {
+  outline: 0;
+}
+
+.github-link:hover::after,
+.github-link:focus-visible::after {
+  opacity: 1;
+}
+
 h1,
 h2 {
   margin: 0;
@@ -388,18 +435,26 @@ h2 {
   color: var(--accent-strong);
 }
 
+.browser-footer {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: -6px 0 0;
+}
+
 .license-note,
 .browser-note {
-  margin: -6px 0 0;
+  margin: 0;
   color: var(--muted);
   font-size: 0.7rem;
   line-height: 1.4;
-  text-align: center;
+  text-align: left;
 }
 
-.browser-note {
-  flex: 0 0 auto;
-  margin-top: -10px;
+.license-note {
+  text-align: right;
 }
 
 .license-note a,
@@ -458,6 +513,7 @@ h2 {
 }
 
 .category-button {
+  --hover-overlay-alpha: 0.45;
   position: relative;
   display: grid;
   width: 44px;
@@ -475,7 +531,7 @@ h2 {
 
 .category-icon {
   position: relative;
-  z-index: 2;
+  z-index: 0;
 }
 
 .category-icon {

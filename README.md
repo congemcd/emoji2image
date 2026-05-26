@@ -50,13 +50,7 @@ npm run preview
 
 ## Credits
 
-Emoji Image Converter uses emoji assets and data from:
-
-- [Noto Emoji](https://github.com/googlefonts/noto-emoji)
-- [Microsoft Fluent Emoji](https://github.com/microsoft/fluentui-emoji)
-- [Twemoji](https://github.com/jdecked/twemoji)
-- [OpenMoji](https://openmoji.org/)
-- [emojibase](https://github.com/milesj/emojibase)
+Emoji Image Converter uses third-party emoji artwork, icon assets, and emoji metadata. See [ATTRIBUTIONS.md](ATTRIBUTIONS.md) for details.
 
 ## License
 
