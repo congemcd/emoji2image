@@ -3,6 +3,7 @@ import {
   Apple,
   ArrowDownToLine,
   Cat,
+  ChevronsUpDown,
   Flag,
   Heart,
   Lightbulb,
@@ -42,6 +43,8 @@ type EmojiCategoryGroup = {
   entries: IndexedEmojiEntry[];
 };
 
+type MobilePickerKind = "style" | "tone";
+
 type IdleDeadlineLike = {
   didTimeout: boolean;
   timeRemaining: () => number;
@@ -74,6 +77,8 @@ let supportCheckQueue: Array<{ tile: HTMLElement; emoji: string; generation: num
 let supportCheckHandle: IdleCallbackHandle | null = null;
 let previewFrameHandle = 0;
 let activeCategoryFrameHandle = 0;
+let activeMobilePicker: MobilePickerKind | null = null;
+let mobilePickerCloseHandle = 0;
 
 const app = document.querySelector<HTMLDivElement>("#app");
 
@@ -123,7 +128,17 @@ app.innerHTML = `
             <div class="control-heading">
               <span>Style</span>
             </div>
-            <select class="mobile-select" id="styleDropdown" aria-label="Emoji platform style"></select>
+            <button
+              class="mobile-select-shell"
+              id="stylePickerButton"
+              type="button"
+              aria-haspopup="dialog"
+              aria-expanded="false"
+              data-mobile-picker="style"
+            >
+              <span class="mobile-select-label" id="stylePickerLabel"></span>
+              <span class="mobile-select-icon" id="styleDropdownIcon" aria-hidden="true"></span>
+            </button>
             <div class="style-card-grid" id="styleSelector" role="radiogroup" aria-label="Emoji platform style"></div>
           </div>
 
@@ -131,7 +146,17 @@ app.innerHTML = `
             <div class="control-heading">
               <span>Tone</span>
             </div>
-            <select class="mobile-select" id="toneDropdown" aria-label="Tone"></select>
+            <button
+              class="mobile-select-shell"
+              id="tonePickerButton"
+              type="button"
+              aria-haspopup="dialog"
+              aria-expanded="false"
+              data-mobile-picker="tone"
+            >
+              <span class="mobile-select-label" id="tonePickerLabel"></span>
+              <span class="mobile-select-icon" id="toneDropdownIcon" aria-hidden="true"></span>
+            </button>
             <div class="tone-grid" id="toneSelector" role="radiogroup" aria-label="Tone"></div>
           </div>
         </div>
@@ -169,6 +194,15 @@ app.innerHTML = `
         </p>
       </div>
     </aside>
+
+    <div class="mobile-option-sheet" id="mobileOptionSheet" hidden>
+      <button class="mobile-sheet-backdrop" id="mobileSheetBackdrop" type="button" aria-label="Close selection menu"></button>
+      <div class="mobile-sheet-panel" role="dialog" aria-modal="true" aria-labelledby="mobileSheetTitle">
+        <div class="mobile-sheet-handle" aria-hidden="true"></div>
+        <h2 class="mobile-sheet-title" id="mobileSheetTitle"></h2>
+        <div class="mobile-sheet-options" id="mobileSheetOptions"></div>
+      </div>
+    </div>
   </main>
 `;
 
@@ -177,9 +211,18 @@ const selectedEmojiName = getElement<HTMLParagraphElement>("selectedEmojiName");
 const supportNote = getElement<HTMLParagraphElement>("supportNote");
 const styleSelector = getElement<HTMLDivElement>("styleSelector");
 const toneSelector = getElement<HTMLDivElement>("toneSelector");
-const styleDropdown = getElement<HTMLSelectElement>("styleDropdown");
-const toneDropdown = getElement<HTMLSelectElement>("toneDropdown");
+const stylePickerButton = getElement<HTMLButtonElement>("stylePickerButton");
+const tonePickerButton = getElement<HTMLButtonElement>("tonePickerButton");
+const stylePickerLabel = getElement<HTMLSpanElement>("stylePickerLabel");
+const tonePickerLabel = getElement<HTMLSpanElement>("tonePickerLabel");
 const categoryFilter = getElement<HTMLDivElement>("categoryFilter");
+const previewPane = getRequiredElement<HTMLElement>(".preview-pane", "Preview pane");
+const brandRow = getRequiredElement<HTMLElement>(".brand-row", "Brand row");
+const previewContent = getRequiredElement<HTMLElement>(".preview-content", "Preview content");
+const previewStack = getRequiredElement<HTMLElement>(".preview-stack", "Preview stack");
+const controlRow = getRequiredElement<HTMLElement>(".control-row", "Control row");
+const downloadRow = getRequiredElement<HTMLElement>(".download-row", "Download row");
+const browserPane = getRequiredElement<HTMLElement>(".browser-pane", "Browser pane");
 const emojiGrid = getElement<HTMLDivElement>("emojiGrid");
 const emojiSearch = getElement<HTMLInputElement>("emojiSearch");
 const downloadPng = getElement<HTMLButtonElement>("downloadPng");
@@ -189,10 +232,19 @@ const downloadJpgLabel = getElement<HTMLSpanElement>("downloadJpgLabel");
 const downloadPngIcon = getElement<HTMLSpanElement>("downloadPngIcon");
 const downloadJpgIcon = getElement<HTMLSpanElement>("downloadJpgIcon");
 const searchIcon = getElement<HTMLSpanElement>("searchIcon");
+const styleDropdownIcon = getElement<HTMLSpanElement>("styleDropdownIcon");
+const toneDropdownIcon = getElement<HTMLSpanElement>("toneDropdownIcon");
+const mobileOptionSheet = getElement<HTMLDivElement>("mobileOptionSheet");
+const mobileSheetBackdrop = getElement<HTMLButtonElement>("mobileSheetBackdrop");
+const mobileSheetTitle = getElement<HTMLHeadingElement>("mobileSheetTitle");
+const mobileSheetOptions = getElement<HTMLDivElement>("mobileSheetOptions");
 
 appendDownloadIcon(downloadPngIcon);
 appendDownloadIcon(downloadJpgIcon);
 appendSearchIcon(searchIcon);
+appendSelectIcon(styleDropdownIcon);
+appendSelectIcon(toneDropdownIcon);
+watchMobilePreviewSize();
 
 function getElement<T extends HTMLElement>(id: string): T {
   const element = document.getElementById(id);
@@ -202,6 +254,16 @@ function getElement<T extends HTMLElement>(id: string): T {
   }
 
   return element as T;
+}
+
+function getRequiredElement<T extends HTMLElement>(selector: string, label: string): T {
+  const element = document.querySelector<T>(selector);
+
+  if (!element) {
+    throw new Error(`${label} is missing.`);
+  }
+
+  return element;
 }
 
 function appendDownloadIcon(container: HTMLElement): void {
@@ -222,6 +284,156 @@ function appendSearchIcon(container: HTMLElement): void {
       "stroke-width": 2.4
     })
   );
+}
+
+function appendSelectIcon(container: HTMLElement): void {
+  container.replaceChildren(
+    createElement(ChevronsUpDown, {
+      width: 18,
+      height: 18,
+      "stroke-width": 2.4
+    })
+  );
+}
+
+function updateMobilePickerLabels(): void {
+  stylePickerLabel.textContent = getSelectedStyle().label;
+  tonePickerLabel.textContent = getSelectedTone().label;
+}
+
+function openMobilePicker(kind: MobilePickerKind): void {
+  if (mobilePickerCloseHandle) {
+    window.clearTimeout(mobilePickerCloseHandle);
+    mobilePickerCloseHandle = 0;
+  }
+
+  activeMobilePicker = kind;
+  stylePickerButton.classList.toggle("is-open", kind === "style");
+  tonePickerButton.classList.toggle("is-open", kind === "tone");
+  stylePickerButton.setAttribute("aria-expanded", String(kind === "style"));
+  tonePickerButton.setAttribute("aria-expanded", String(kind === "tone"));
+  mobileSheetTitle.textContent = kind === "style" ? "Style" : "Tone";
+  renderMobilePickerOptions(kind);
+  mobileOptionSheet.hidden = false;
+  requestAnimationFrame(() => {
+    mobileOptionSheet.classList.add("is-visible");
+  });
+  document.body.classList.add("has-mobile-sheet");
+}
+
+function closeMobilePicker(): void {
+  activeMobilePicker = null;
+  mobileOptionSheet.classList.remove("is-visible");
+  document.body.classList.remove("has-mobile-sheet");
+  stylePickerButton.classList.remove("is-open");
+  tonePickerButton.classList.remove("is-open");
+  stylePickerButton.setAttribute("aria-expanded", "false");
+  tonePickerButton.setAttribute("aria-expanded", "false");
+
+  mobilePickerCloseHandle = window.setTimeout(() => {
+    mobileOptionSheet.hidden = true;
+    mobilePickerCloseHandle = 0;
+  }, 220);
+}
+
+function renderMobilePickerOptions(kind: MobilePickerKind): void {
+  const fragment = document.createDocumentFragment();
+
+  if (kind === "style") {
+    getAvailablePlatformStyles().forEach((style) => {
+      fragment.append(createMobilePickerOption(style.label, style.id, style.id === state.selectedStyle));
+    });
+  } else {
+    skinTones.forEach((tone) => {
+      fragment.append(createMobilePickerOption(tone.label, tone.id, tone.id === state.selectedTone, tone.color));
+    });
+  }
+
+  mobileSheetOptions.replaceChildren(fragment);
+}
+
+function createMobilePickerOption(
+  label: string,
+  value: string,
+  isSelected: boolean,
+  toneColor?: string
+): HTMLButtonElement {
+  const option = document.createElement("button");
+  option.className = "mobile-sheet-option";
+  option.type = "button";
+  option.dataset.value = value;
+  option.setAttribute("aria-pressed", String(isSelected));
+
+  if (toneColor) {
+    const swatch = document.createElement("span");
+    swatch.className = "mobile-sheet-swatch";
+    swatch.style.setProperty("--tone-color", toneColor);
+    option.append(swatch);
+  }
+
+  const text = document.createElement("span");
+  text.textContent = label;
+  option.append(text);
+
+  return option;
+}
+
+function selectMobilePickerOption(value: string): void {
+  if (activeMobilePicker === "style") {
+    state.selectedStyle = value as PlatformStyleId;
+    updateRadioSelection(styleSelector, "data-style", state.selectedStyle);
+  }
+
+  if (activeMobilePicker === "tone") {
+    state.selectedTone = value as SkinToneId;
+    updateRadioSelection(toneSelector, "data-tone", state.selectedTone);
+  }
+
+  updateMobilePickerLabels();
+  closeMobilePicker();
+  renderPreview();
+}
+
+function watchMobilePreviewSize(): void {
+  const updatePreviewMetrics = () => {
+    const previewPaneStyle = getComputedStyle(previewPane);
+    const previewContentStyle = getComputedStyle(previewContent);
+    const previewStackStyle = getComputedStyle(previewStack);
+    const previewPaneGap = Number.parseFloat(previewPaneStyle.gap) || 0;
+    const previewContentGap = Number.parseFloat(previewContentStyle.gap) || 0;
+    const previewStackGap = Number.parseFloat(previewStackStyle.gap) || 0;
+    const previewChromeHeight =
+      Number.parseFloat(previewPaneStyle.paddingTop) +
+      Number.parseFloat(previewPaneStyle.paddingBottom) +
+      brandRow.getBoundingClientRect().height +
+      selectedEmojiName.getBoundingClientRect().height +
+      controlRow.getBoundingClientRect().height +
+      downloadRow.getBoundingClientRect().height +
+      previewPaneGap * 2 +
+      previewContentGap +
+      previewStackGap;
+
+    document.documentElement.style.setProperty(
+      "--mobile-browser-height",
+      `${Math.ceil(browserPane.getBoundingClientRect().height)}px`
+    );
+    document.documentElement.style.setProperty(
+      "--mobile-preview-chrome-height",
+      `${Math.ceil(previewChromeHeight)}px`
+    );
+  };
+
+  updatePreviewMetrics();
+  window.addEventListener("resize", updatePreviewMetrics);
+
+  if (!("ResizeObserver" in window)) {
+    return;
+  }
+
+  const observer = new ResizeObserver(updatePreviewMetrics);
+  [browserPane, brandRow, selectedEmojiName, controlRow, downloadRow].forEach((element) => {
+    observer.observe(element);
+  });
 }
 
 function getSelectedStyle() {
@@ -309,15 +521,7 @@ function renderStyleSelector(): void {
     )
     .join("");
 
-  styleDropdown.innerHTML = availableStyles
-    .map(
-      (style) => `
-        <option value="${style.id}" ${style.id === state.selectedStyle ? "selected" : ""}>
-          ${style.label}
-        </option>
-      `
-    )
-    .join("");
+  updateMobilePickerLabels();
 }
 
 function renderToneSelector(): void {
@@ -339,15 +543,7 @@ function renderToneSelector(): void {
     )
     .join("");
 
-  toneDropdown.innerHTML = skinTones
-    .map(
-      (tone) => `
-        <option value="${tone.id}" ${tone.id === state.selectedTone ? "selected" : ""}>
-          ${tone.label}
-        </option>
-      `
-    )
-    .join("");
+  updateMobilePickerLabels();
 }
 
 function renderCategoryFilter(): void {
@@ -796,7 +992,7 @@ function updateActiveCategoryFromScroll(): void {
     return;
   }
 
-  const isHorizontalBrowser = window.matchMedia("(max-width: 560px)").matches;
+  const isHorizontalBrowser = window.matchMedia("(max-width: 720px)").matches;
   const gridRect = emojiGrid.getBoundingClientRect();
   let activeSection = sections[0];
 
@@ -894,14 +1090,12 @@ styleSelector.addEventListener("click", (event) => {
 
   state.selectedStyle = button.dataset.style as PlatformStyleId;
   updateRadioSelection(styleSelector, "data-style", state.selectedStyle);
-  styleDropdown.value = state.selectedStyle;
+  updateMobilePickerLabels();
   renderPreview();
 });
 
-styleDropdown.addEventListener("change", () => {
-  state.selectedStyle = styleDropdown.value as PlatformStyleId;
-  updateRadioSelection(styleSelector, "data-style", state.selectedStyle);
-  renderPreview();
+stylePickerButton.addEventListener("click", () => {
+  openMobilePicker("style");
 });
 
 toneSelector.addEventListener("click", (event) => {
@@ -913,14 +1107,30 @@ toneSelector.addEventListener("click", (event) => {
 
   state.selectedTone = button.dataset.tone as SkinToneId;
   updateRadioSelection(toneSelector, "data-tone", state.selectedTone);
-  toneDropdown.value = state.selectedTone;
+  updateMobilePickerLabels();
   renderPreview();
 });
 
-toneDropdown.addEventListener("change", () => {
-  state.selectedTone = toneDropdown.value as SkinToneId;
-  updateRadioSelection(toneSelector, "data-tone", state.selectedTone);
-  renderPreview();
+tonePickerButton.addEventListener("click", () => {
+  openMobilePicker("tone");
+});
+
+mobileSheetBackdrop.addEventListener("click", closeMobilePicker);
+
+mobileSheetOptions.addEventListener("click", (event) => {
+  const option = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-value]");
+
+  if (!option?.dataset.value) {
+    return;
+  }
+
+  selectMobilePickerOption(option.dataset.value);
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && activeMobilePicker) {
+    closeMobilePicker();
+  }
 });
 
 categoryFilter.addEventListener("click", (event) => {

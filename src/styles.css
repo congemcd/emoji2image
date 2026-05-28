@@ -35,6 +35,10 @@ body {
   background: #ffffff;
 }
 
+body.has-mobile-sheet {
+  overflow: hidden;
+}
+
 button,
 input {
   font: inherit;
@@ -46,7 +50,7 @@ button {
 
 .app-shell {
   display: grid;
-  grid-template-columns: minmax(360px, min(44vw, 560px)) minmax(390px, 1fr);
+  grid-template-columns: minmax(360px, min(33vw, 720px)) minmax(390px, 1fr);
   height: 100vh;
   min-height: 100vh;
   overflow: hidden;
@@ -62,7 +66,7 @@ button {
   flex-direction: column;
   gap: 24px;
   width: 100%;
-  max-width: 560px;
+  max-width: 720px;
   padding: 28px 32px;
   border-right: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.76);
@@ -244,17 +248,181 @@ h2 {
   gap: 8px;
 }
 
-.mobile-select {
+.mobile-select-shell {
   display: none;
+  position: relative;
   width: 100%;
   min-height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   border: 1px solid var(--line);
   border-radius: var(--selection-radius);
   background: var(--paper);
   color: var(--ink);
   font-size: 1rem;
   font-weight: 750;
+  outline: 0;
+  overflow: hidden;
+  padding: 0 42px 0 14px;
+  text-align: left;
+}
+
+.mobile-select-shell::after {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: var(--selection-radius);
+  background: rgba(255, 255, 255, 0.45);
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease;
+}
+
+.mobile-select-shell:hover::after,
+.mobile-select-shell:focus-visible::after,
+.mobile-select-shell.is-open::after {
+  opacity: 1;
+}
+
+.mobile-select-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobile-select-icon {
+  position: absolute;
+  top: 50%;
+  right: 14px;
+  display: grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  color: var(--muted);
+  pointer-events: none;
+  transform: translateY(-50%);
+  z-index: 0;
+}
+
+.mobile-select-icon svg {
+  display: block;
+}
+
+.mobile-option-sheet[hidden] {
+  display: none;
+}
+
+.mobile-option-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: none;
+  pointer-events: none;
+}
+
+.mobile-sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(23, 26, 31, 0.28);
+  opacity: 0;
+  padding: 0;
+  transition: opacity 200ms ease;
+}
+
+.mobile-sheet-panel {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 12px;
+  height: clamp(240px, max-content, 50vh);
+  max-height: 50vh;
+  min-height: 240px;
+  border-radius: 20px 20px 0 0;
+  background: var(--paper);
+  padding: 10px 20px 0;
+  box-shadow: 0 -18px 44px rgba(31, 36, 42, 0.16);
+  transform: translateY(100%);
+  transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: transform;
+}
+
+.mobile-option-sheet.is-visible {
+  pointer-events: auto;
+}
+
+.mobile-option-sheet.is-visible .mobile-sheet-backdrop {
+  opacity: 1;
+}
+
+.mobile-option-sheet.is-visible .mobile-sheet-panel {
+  transform: translateY(0);
+}
+
+.mobile-sheet-handle {
+  width: 42px;
+  height: 4px;
+  justify-self: center;
+  border-radius: 999px;
+  background: #d2d7d1;
+}
+
+.mobile-sheet-title {
+  color: var(--ink);
+  font-size: 1rem;
+  font-weight: 850;
+  line-height: 1.2;
+}
+
+.mobile-sheet-options {
+  display: grid;
+  gap: 8px;
+  min-height: 0;
+  overflow: auto;
+  padding-block: 8px 56px;
+}
+
+.mobile-sheet-option {
+  display: flex;
+  height: 56px;
+  min-height: 56px;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--selection-radius);
+  background: transparent;
+  color: var(--ink);
+  font-size: 1rem;
+  font-weight: 750;
   padding: 0 14px;
+  text-align: left;
+}
+
+.mobile-sheet-option[aria-pressed="true"] {
+  border-color: #f0c36d;
+  background: #fff3d3;
+  color: #7b4b00;
+}
+
+.mobile-sheet-option:hover,
+.mobile-sheet-option:focus-visible {
+  background: rgba(255, 243, 211, 0.58);
+  outline: 0;
+}
+
+.mobile-sheet-swatch {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(23, 26, 31, 0.18);
+  border-radius: 999px;
+  background: var(--tone-color);
 }
 
 .style-card-grid {
@@ -483,7 +651,19 @@ h2 {
 }
 
 .browser-controls {
-  display: contents;
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 20px;
+  order: 0;
+}
+
+.emoji-grid {
+  order: 1;
+}
+
+.browser-footer {
+  order: 2;
 }
 
 .search-field {
@@ -672,36 +852,40 @@ h2 {
   object-fit: contain;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 720px) {
+  :root {
+    --mobile-browser-height: 0px;
+    --mobile-emoji-cell: min(56px, round(down, calc((100vw - 20px) / 7.5), 1px));
+    --mobile-preview-chrome-height: 0px;
+    --mobile-preview-frame: clamp(
+      128px,
+      min(
+        calc(100svh - var(--mobile-browser-height) - var(--mobile-preview-chrome-height)),
+        calc(100vw - 40px)
+      ),
+      256px
+    );
+  }
+
   .app-shell {
     height: auto;
     grid-template-columns: 1fr;
     overflow: visible;
   }
 
-  .preview-pane {
-    border-right: 0;
-    border-bottom: 1px solid var(--line);
-  }
-
-  .preview-frame {
-    width: 100%;
-  }
-
-  .browser-pane {
-    min-height: 720px;
-    overflow: visible;
-  }
-}
-
-@media (max-width: 560px) {
-  :root {
-    --mobile-emoji-cell: min(56px, round(down, calc((100vw - 20px) / 7.5), 1px));
-  }
-
   .preview-pane,
   .browser-pane {
     padding: 20px;
+  }
+
+  .preview-pane {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    gap: 32px;
+    height: max(472px, calc(100svh - var(--mobile-browser-height)));
+    max-width: none;
+    min-height: 472px;
+    overflow: visible;
   }
 
   .browser-pane {
@@ -710,6 +894,9 @@ h2 {
   }
 
   .preview-content {
+    flex: 0 0 auto;
+    gap: 32px;
+    overflow: visible;
     padding-top: 0;
   }
 
@@ -723,7 +910,7 @@ h2 {
   }
 
   .preview-frame {
-    width: 128px;
+    width: var(--mobile-preview-frame);
   }
 
   .style-card-grid,
@@ -731,7 +918,11 @@ h2 {
     display: none;
   }
 
-  .mobile-select {
+  .mobile-select-shell {
+    display: flex;
+  }
+
+  .mobile-option-sheet {
     display: block;
   }
 
@@ -748,6 +939,8 @@ h2 {
       "categories"
       "footer";
     gap: 16px;
+    align-self: start;
+    height: fit-content;
     min-height: 0;
   }
 
