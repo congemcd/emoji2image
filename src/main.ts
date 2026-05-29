@@ -6,6 +6,7 @@ import {
   ChevronsUpDown,
   Flag,
   Heart,
+  Info,
   Lightbulb,
   MapPinned,
   Search,
@@ -20,7 +21,7 @@ import {
   createEmojiBlob,
   drawEmojiImage,
   getEmojiAssetUrl,
-  getExportSize,
+  getExportSizeLabel,
   getPreviewSize
 } from "./renderer";
 import type { EmojiCategory, EmojiEntry, PlatformStyle, PlatformStyleId, SkinToneId } from "./types";
@@ -79,6 +80,7 @@ let previewFrameHandle = 0;
 let activeCategoryFrameHandle = 0;
 let activeMobilePicker: MobilePickerKind | null = null;
 let mobilePickerCloseHandle = 0;
+let styleInfoTooltipCloseHandle = 0;
 
 const app = document.querySelector<HTMLDivElement>("#app");
 
@@ -126,7 +128,18 @@ app.innerHTML = `
         <div class="control-row">
           <div class="control-group">
             <div class="control-heading">
-              <span>Style</span>
+              <span class="control-heading-label">
+                Style
+                <button
+                  class="info-button"
+                  id="styleInfoButton"
+                  type="button"
+                  aria-describedby="styleInfoTooltip"
+                  aria-label="Apple emoji licensing info"
+                >
+                  <span class="info-button-icon" id="styleInfoIcon" aria-hidden="true"></span>
+                </button>
+              </span>
             </div>
             <button
               class="mobile-select-shell"
@@ -203,6 +216,9 @@ app.innerHTML = `
         <div class="mobile-sheet-options" id="mobileSheetOptions"></div>
       </div>
     </div>
+    <span class="info-tooltip" id="styleInfoTooltip" role="tooltip" hidden>
+      Apple emoji are only available on Apple devices due to licensing restrictions.
+    </span>
   </main>
 `;
 
@@ -232,6 +248,9 @@ const downloadJpgLabel = getElement<HTMLSpanElement>("downloadJpgLabel");
 const downloadPngIcon = getElement<HTMLSpanElement>("downloadPngIcon");
 const downloadJpgIcon = getElement<HTMLSpanElement>("downloadJpgIcon");
 const searchIcon = getElement<HTMLSpanElement>("searchIcon");
+const styleInfoButton = getElement<HTMLButtonElement>("styleInfoButton");
+const styleInfoIcon = getElement<HTMLSpanElement>("styleInfoIcon");
+const styleInfoTooltip = getElement<HTMLSpanElement>("styleInfoTooltip");
 const styleDropdownIcon = getElement<HTMLSpanElement>("styleDropdownIcon");
 const toneDropdownIcon = getElement<HTMLSpanElement>("toneDropdownIcon");
 const mobileOptionSheet = getElement<HTMLDivElement>("mobileOptionSheet");
@@ -242,6 +261,7 @@ const mobileSheetOptions = getElement<HTMLDivElement>("mobileSheetOptions");
 appendDownloadIcon(downloadPngIcon);
 appendDownloadIcon(downloadJpgIcon);
 appendSearchIcon(searchIcon);
+appendInfoIcon(styleInfoIcon);
 appendSelectIcon(styleDropdownIcon);
 appendSelectIcon(toneDropdownIcon);
 watchMobilePreviewSize();
@@ -294,6 +314,62 @@ function appendSelectIcon(container: HTMLElement): void {
       "stroke-width": 2.4
     })
   );
+}
+
+function appendInfoIcon(container: HTMLElement): void {
+  container.replaceChildren(
+    createElement(Info, {
+      width: 16,
+      height: 16,
+      "stroke-width": 2.3
+    })
+  );
+}
+
+function showStyleInfoTooltip(): void {
+  if (styleInfoTooltipCloseHandle) {
+    window.clearTimeout(styleInfoTooltipCloseHandle);
+    styleInfoTooltipCloseHandle = 0;
+  }
+
+  styleInfoTooltip.hidden = false;
+  styleInfoTooltip.classList.remove("is-visible");
+  styleInfoTooltip.style.visibility = "hidden";
+  styleInfoTooltip.style.left = "0px";
+  styleInfoTooltip.style.top = "0px";
+
+  requestAnimationFrame(positionStyleInfoTooltip);
+}
+
+function hideStyleInfoTooltip(): void {
+  styleInfoTooltip.classList.remove("is-visible");
+
+  styleInfoTooltipCloseHandle = window.setTimeout(() => {
+    styleInfoTooltip.hidden = true;
+    styleInfoTooltipCloseHandle = 0;
+  }, 140);
+}
+
+function positionStyleInfoTooltip(): void {
+  if (styleInfoTooltip.hidden) {
+    return;
+  }
+
+  const spacing = 8;
+  const viewportPadding = 12;
+  const buttonRect = styleInfoButton.getBoundingClientRect();
+  const tooltipRect = styleInfoTooltip.getBoundingClientRect();
+  const preferredLeft = buttonRect.left + buttonRect.width / 2 - tooltipRect.width / 2;
+  const maxLeft = window.innerWidth - tooltipRect.width - viewportPadding;
+  const left = Math.min(Math.max(preferredLeft, viewportPadding), Math.max(maxLeft, viewportPadding));
+  const aboveTop = buttonRect.top - tooltipRect.height - spacing;
+  const maxTop = window.innerHeight - tooltipRect.height - viewportPadding;
+  const top = Math.min(Math.max(aboveTop, viewportPadding), Math.max(maxTop, viewportPadding));
+
+  styleInfoTooltip.style.left = `${Math.round(left)}px`;
+  styleInfoTooltip.style.top = `${Math.round(top)}px`;
+  styleInfoTooltip.style.visibility = "visible";
+  styleInfoTooltip.classList.add("is-visible");
 }
 
 function updateMobilePickerLabels(): void {
@@ -1059,10 +1135,10 @@ async function download(format: "image/png" | "image/jpeg"): Promise<void> {
 
   const extension = format === "image/png" ? "png" : "jpg";
   const selectedStyle = getSelectedStyle();
-  let blob: Blob;
+  let exportResult: Awaited<ReturnType<typeof createEmojiBlob>>;
 
   try {
-    blob = await createEmojiBlob(getRenderedEmoji(), selectedStyle, format);
+    exportResult = await createEmojiBlob(getRenderedEmoji(), selectedStyle, format);
   } catch {
     supportNote.textContent = `${selectedStyle.label} does not include ${state.selectedEmoji.name}. Choose another style or emoji.`;
     supportNote.hidden = false;
@@ -1070,11 +1146,12 @@ async function download(format: "image/png" | "image/jpeg"): Promise<void> {
   }
 
   const link = document.createElement("a");
-  const objectUrl = URL.createObjectURL(blob);
+  const objectUrl = URL.createObjectURL(exportResult.blob);
   const name = state.selectedEmoji.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  const sizeLabel = getExportSizeLabel(selectedStyle.id, exportResult);
 
   link.href = objectUrl;
-  link.download = `${name || "emoji"}-${state.selectedStyle}-${getExportSize()}.${extension}`;
+  link.download = `${name || "emoji"}-${state.selectedStyle}-${sizeLabel}.${extension}`;
   document.body.append(link);
   link.click();
   link.remove();
@@ -1128,10 +1205,21 @@ mobileSheetOptions.addEventListener("click", (event) => {
 });
 
 document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    hideStyleInfoTooltip();
+  }
+
   if (event.key === "Escape" && activeMobilePicker) {
     closeMobilePicker();
   }
 });
+
+styleInfoButton.addEventListener("pointerenter", showStyleInfoTooltip);
+styleInfoButton.addEventListener("pointerleave", hideStyleInfoTooltip);
+styleInfoButton.addEventListener("focus", showStyleInfoTooltip);
+styleInfoButton.addEventListener("blur", hideStyleInfoTooltip);
+window.addEventListener("resize", positionStyleInfoTooltip);
+window.addEventListener("scroll", positionStyleInfoTooltip, true);
 
 categoryFilter.addEventListener("click", (event) => {
   const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-category]");

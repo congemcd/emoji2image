@@ -1,10 +1,17 @@
-import type { EmojiEntry, PlatformStyle, SkinTone } from "./types";
+import type { EmojiEntry, PlatformStyle, PlatformStyleId, SkinTone } from "./types";
 
-const EXPORT_SIZE = 256;
+const APPLE_EXPORT_SIZE = 160;
+const APPLE_EXPORT_Y_OFFSET = 9;
 const PREVIEW_SIZE = 256;
 const CENTERING_REFERENCE_SIZE = 512;
 const MEASURED_CENTERING_OFFSET_AT_REFERENCE_SIZE = 36;
 const imageCache = new Map<string, Promise<HTMLImageElement>>();
+
+export type EmojiBlobResult = {
+  blob: Blob;
+  width: number;
+  height: number;
+};
 
 export function applySkinTone(entry: EmojiEntry, tone: SkinTone): string {
   if (!entry.supportsTone || tone.id === "default") {
@@ -42,7 +49,10 @@ export async function drawEmojiImage(
     return;
   }
 
-  drawFontEmoji(context, canvas, emoji, style, size);
+  drawFontEmoji(context, emoji, style, size, {
+    fontSize: size - Math.round(size * 0.13) * 2,
+    yOffset: getFontCenteringOffset(size)
+  });
 }
 
 function drawContainedImage(
@@ -63,22 +73,15 @@ function drawContainedImage(
 
 function drawFontEmoji(
   context: CanvasRenderingContext2D,
-  _canvas: HTMLCanvasElement,
   emoji: string,
   style: PlatformStyle,
-  size: number
+  size: number,
+  options: { fontSize: number; yOffset: number }
 ): void {
-  const padding = Math.round(size * 0.13);
-  const fontSize = size - padding * 2;
-
   context.textAlign = "center";
   context.textBaseline = "middle";
-  context.font = `${fontSize}px ${style.fontFamily}`;
-  context.fillText(
-    emoji,
-    size / 2,
-    size / 2 + getFontCenteringOffset(size)
-  );
+  context.font = `${options.fontSize}px ${style.fontFamily}`;
+  context.fillText(emoji, size / 2, size / 2 + options.yOffset);
 }
 
 function loadImage(url: string): Promise<HTMLImageElement> {
@@ -112,16 +115,13 @@ export async function createEmojiBlob(
   emoji: string,
   style: PlatformStyle,
   format: "image/png" | "image/jpeg"
-): Promise<Blob> {
+): Promise<EmojiBlobResult> {
   const canvas = document.createElement("canvas");
   const background = format === "image/jpeg" ? "#ffffff" : null;
 
-  await drawEmojiImage(canvas, emoji, style, {
-    size: EXPORT_SIZE,
-    background
-  });
+  await drawEmojiExport(canvas, emoji, style, background);
 
-  return new Promise((resolve, reject) => {
+  const blob = await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(
       (blob) => {
         if (blob) {
@@ -135,10 +135,73 @@ export async function createEmojiBlob(
       format === "image/jpeg" ? 0.96 : undefined
     );
   });
+
+  return {
+    blob,
+    width: canvas.width,
+    height: canvas.height
+  };
 }
 
-export function getExportSize(): number {
-  return EXPORT_SIZE;
+async function drawEmojiExport(
+  canvas: HTMLCanvasElement,
+  emoji: string,
+  style: PlatformStyle,
+  background: string | null
+): Promise<void> {
+  if (style.kind === "asset") {
+    const image = await loadImage(getEmojiAssetUrl(emoji, style));
+    const width = image.naturalWidth || PREVIEW_SIZE;
+    const height = image.naturalHeight || PREVIEW_SIZE;
+    const context = prepareCanvas(canvas, width, height, background);
+
+    context.drawImage(image, 0, 0, width, height);
+    return;
+  }
+
+  const context = prepareCanvas(canvas, APPLE_EXPORT_SIZE, APPLE_EXPORT_SIZE, background);
+
+  drawFontEmoji(context, emoji, style, APPLE_EXPORT_SIZE, {
+    fontSize: APPLE_EXPORT_SIZE,
+    yOffset: getFontCenteringOffset(APPLE_EXPORT_SIZE) + APPLE_EXPORT_Y_OFFSET
+  });
+}
+
+function prepareCanvas(
+  canvas: HTMLCanvasElement,
+  width: number,
+  height: number,
+  background: string | null
+): CanvasRenderingContext2D {
+  const context = canvas.getContext("2d");
+
+  if (!context) {
+    throw new Error("Canvas rendering is not available.");
+  }
+
+  canvas.width = width;
+  canvas.height = height;
+  context.clearRect(0, 0, width, height);
+
+  if (background) {
+    context.fillStyle = background;
+    context.fillRect(0, 0, width, height);
+  }
+
+  return context;
+}
+
+export function getExportSizeLabel(
+  styleId: PlatformStyleId,
+  dimensions?: { width: number; height: number }
+): string {
+  if (dimensions) {
+    return dimensions.width === dimensions.height
+      ? String(dimensions.width)
+      : `${dimensions.width}x${dimensions.height}`;
+  }
+
+  return styleId === "apple" ? String(APPLE_EXPORT_SIZE) : "original";
 }
 
 export function getPreviewSize(): number {
