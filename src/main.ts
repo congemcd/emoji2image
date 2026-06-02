@@ -66,13 +66,16 @@ const categoryDisplay = {
 
 type IdleCallbackHandle = ReturnType<typeof setTimeout> | number;
 
-const browserFallbackStyleIds: PlatformStyleId[] = ["google", "fluentFlat", "twemoji", "openmoji"];
+const defaultBrowserEmojiFontFamily =
+  '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", emoji, sans-serif';
+const defaultBrowserFallbackStyleIds: PlatformStyleId[] = ["google", "fluentFlat", "twemoji", "openmoji"];
+const windowsBrowserFallbackStyleIds: PlatformStyleId[] = ["fluent3d", "fluentFlat", "google", "twemoji", "openmoji"];
 const defaultStyleFallbackIds: PlatformStyleId[] = ["google", "fluent3d", "twemoji", "openmoji"];
 const browserFontSupportCache = new Map<string, boolean>();
 let browserSupportObserver: IntersectionObserver | null = null;
 let emojiCatalog: EmojiEntry[] = [];
 let emojiGridRenderGeneration = 0;
-let missingGlyphPixels: Uint8ClampedArray | null = null;
+const missingGlyphPixelsByFontFamily = new Map<string, Uint8ClampedArray>();
 let supportCheckGeneration = 0;
 let supportCheckQueue: Array<{ tile: HTMLElement; emoji: string; generation: number }> = [];
 let supportCheckHandle: IdleCallbackHandle | null = null;
@@ -579,6 +582,26 @@ function getDeviceStyleId(): PlatformStyleId | null {
   return null;
 }
 
+function getDeviceStyle(): PlatformStyle | undefined {
+  const deviceStyleId = getDeviceStyleId();
+
+  return platformStyles.find((style) => style.id === deviceStyleId);
+}
+
+function getPreviewStyle(style: PlatformStyle, emoji: string): PlatformStyle {
+  const deviceStyle = getDeviceStyle();
+
+  if (
+    style.kind === "asset" &&
+    style.id === deviceStyle?.id &&
+    isEmojiGlyphSupported(emoji, deviceStyle.fontFamily)
+  ) {
+    return { ...style, kind: "font" };
+  }
+
+  return style;
+}
+
 function renderStyleSelector(): void {
   const availableStyles = getAvailablePlatformStyles();
 
@@ -844,7 +867,7 @@ function processBrowserSupportChecks(deadline: IdleDeadlineLike): void {
       continue;
     }
 
-    if (!isDefaultEmojiGlyphSupported(emoji)) {
+    if (!isEmojiGlyphSupported(emoji, getBrowserEmojiFontFamily())) {
       showBrowserFallbackAsset(tile, emoji, 0);
     }
 
@@ -856,22 +879,29 @@ function processBrowserSupportChecks(deadline: IdleDeadlineLike): void {
   }
 }
 
-function isDefaultEmojiGlyphSupported(emoji: string): boolean {
-  const cachedResult = browserFontSupportCache.get(emoji);
+function isEmojiGlyphSupported(emoji: string, fontFamily: string): boolean {
+  const cacheKey = `${fontFamily}\n${emoji}`;
+  const cachedResult = browserFontSupportCache.get(cacheKey);
 
   if (cachedResult !== undefined) {
     return cachedResult;
   }
 
-  const emojiPixels = renderBrowserGlyphProbe(emoji);
-  const isSupported = getPixelDifferenceRatio(emojiPixels, getMissingGlyphPixels()) > 0.08;
+  const emojiPixels = renderBrowserGlyphProbe(emoji, fontFamily);
+  const isSupported = getPixelDifferenceRatio(emojiPixels, getMissingGlyphPixels(fontFamily)) > 0.08;
 
-  browserFontSupportCache.set(emoji, isSupported);
+  browserFontSupportCache.set(cacheKey, isSupported);
   return isSupported;
 }
 
-function getMissingGlyphPixels(): Uint8ClampedArray {
-  missingGlyphPixels ??= renderBrowserGlyphProbe(String.fromCodePoint(0x10ffff));
+function getMissingGlyphPixels(fontFamily: string): Uint8ClampedArray {
+  let missingGlyphPixels = missingGlyphPixelsByFontFamily.get(fontFamily);
+
+  if (!missingGlyphPixels) {
+    missingGlyphPixels = renderBrowserGlyphProbe(String.fromCodePoint(0x10ffff), fontFamily);
+    missingGlyphPixelsByFontFamily.set(fontFamily, missingGlyphPixels);
+  }
+
   return missingGlyphPixels;
 }
 
@@ -908,7 +938,7 @@ function cancelIdleWork(handle: IdleCallbackHandle): void {
   window.clearTimeout(handle);
 }
 
-function renderBrowserGlyphProbe(emoji: string): Uint8ClampedArray {
+function renderBrowserGlyphProbe(emoji: string, fontFamily: string): Uint8ClampedArray {
   const probeSize = 72;
   const canvas = document.createElement("canvas");
   const context = canvas.getContext("2d", { willReadFrequently: true });
@@ -923,7 +953,7 @@ function renderBrowserGlyphProbe(emoji: string): Uint8ClampedArray {
   context.clearRect(0, 0, probeSize, probeSize);
   context.textAlign = "center";
   context.textBaseline = "middle";
-  context.font = `${Math.round(probeSize * 0.62)}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", emoji, sans-serif`;
+  context.font = `${Math.round(probeSize * 0.62)}px ${fontFamily}`;
   context.fillText(emoji, probeSize / 2, probeSize / 2);
 
   return context.getImageData(0, 0, probeSize, probeSize).data;
@@ -966,9 +996,19 @@ function showBrowserFallbackAsset(tile: HTMLElement, emoji: string, fallbackInde
 }
 
 function getBrowserFallbackStyle(index: number): PlatformStyle | undefined {
-  const styleId = browserFallbackStyleIds[index];
+  const styleId = getBrowserFallbackStyleIds()[index];
 
   return platformStyles.find((style) => style.id === styleId);
+}
+
+function getBrowserFallbackStyleIds(): PlatformStyleId[] {
+  return getDeviceStyleId() === "fluent3d"
+    ? windowsBrowserFallbackStyleIds
+    : defaultBrowserFallbackStyleIds;
+}
+
+function getBrowserEmojiFontFamily(): string {
+  return getDeviceStyle()?.fontFamily ?? defaultBrowserEmojiFontFamily;
 }
 
 let previewRenderToken = 0;
@@ -1007,7 +1047,7 @@ function renderPreview(): void {
     const renderedEmoji = getRenderedEmoji(selectedEmoji);
     previewFrameHandle = 0;
 
-    void drawEmojiImage(renderCanvas, renderedEmoji, selectedStyle)
+    void drawEmojiImage(renderCanvas, renderedEmoji, getPreviewStyle(selectedStyle, renderedEmoji))
       .then(() => {
         if (renderToken !== previewRenderToken) {
           return;
