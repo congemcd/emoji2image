@@ -106,6 +106,14 @@ button {
   letter-spacing: 0;
 }
 
+.brand-subtitle {
+  margin: 0;
+  color: var(--tertiary);
+  font-size: 0.82rem;
+  font-weight: 400;
+  line-height: 1.4;
+}
+
 .github-link {
   position: relative;
   display: block;
@@ -634,7 +642,7 @@ h2 {
   border-radius: 999px;
   background: var(--paper);
   color: var(--ink);
-  font-size: 1.2rem;
+  font-size: 1.1rem;
   font-weight: 850;
   overflow: hidden;
 }
@@ -943,10 +951,10 @@ h2 {
     --preview-pane-inline-padding: 20px;
     border-right: 0;
     border-bottom: 1px solid var(--line);
-    gap: 32px;
-    height: max(472px, calc(100svh - var(--mobile-browser-height)));
+    gap: 24px;
+    height: max(448px, calc(100svh - var(--mobile-browser-height)));
     max-width: none;
-    min-height: 472px;
+    min-height: 448px;
     overflow: visible;
   }
 
@@ -957,9 +965,13 @@ h2 {
 
   .preview-content {
     flex: 0 0 auto;
-    gap: 32px;
+    gap: 24px;
     overflow: visible;
     padding-top: 0;
+  }
+
+  .preview-stack {
+    gap: 8px;
   }
 
   .brand-row,
@@ -991,6 +1003,10 @@ h2 {
   .control-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
+  }
+
+  .download-button {
+    min-height: 56px;
   }
 
   .browser-pane {

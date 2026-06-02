@@ -101,7 +101,8 @@ app.innerHTML = `
     <section class="preview-pane" aria-label="Emoji image preview">
       <div class="brand-row">
         <div>
-          <p class="eyebrow">Emoji Image Converter</p>
+          <h1 class="eyebrow">Emoji Image Converter</h1>
+          <p class="brand-subtitle">Convert emoji to PNG or JPG images</p>
         </div>
         <a
           class="github-link"
